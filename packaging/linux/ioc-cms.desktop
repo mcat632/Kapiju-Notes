@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=IOC-CMS
+Comment=Fedora-first investigation case management desktop
+Exec=ioc-cms gui
+Terminal=false
+Categories=Security;Utility;
+Keywords=OSINT;DFIR;Forensics;IOC;Case Management;
