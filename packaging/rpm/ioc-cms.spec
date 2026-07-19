@@ -23,7 +23,8 @@ cp packaging/linux/ioc-cms.desktop %{buildroot}%{_datadir}/applications/ioc-cms.
 mkdir -p %{buildroot}%{_bindir}
 cat > %{buildroot}%{_bindir}/ioc-cms <<'WRAPPER'
 #!/usr/bin/env bash
-exec python3 /usr/share/ioc-cms/ioc_cms "$@"
+export PYTHONPATH="/usr/share/ioc-cms${PYTHONPATH:+:${PYTHONPATH}}"
+exec python3 -m ioc_cms "$@"
 WRAPPER
 chmod 0755 %{buildroot}%{_bindir}/ioc-cms
 

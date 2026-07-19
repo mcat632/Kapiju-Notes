@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 APP_DIR = Path.home() / ".config" / "ioc-cms"
 CONFIG_FILE = APP_DIR / "agency.json"
+VALID_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 WORKSPACE_TABS = [
     "Case Management",
@@ -114,12 +116,36 @@ def configure(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def validate_case_id(case_id: str) -> str:
+    if not VALID_CASE_ID.fullmatch(case_id):
+        raise ValueError("Case ID must be 1-128 chars and contain only letters, numbers, dots, underscores, or hyphens.")
+    return case_id
+
+
+def cases_root(profile: AgencyProfile) -> Path:
+    return Path(profile.evidence_root).expanduser().resolve() / "cases"
+
+
+def case_directory(profile: AgencyProfile, case_id: str) -> Path:
+    safe_id = validate_case_id(case_id)
+    root = cases_root(profile)
+    path = (root / safe_id).resolve()
+    if root != path and root not in path.parents:
+        raise ValueError("Case path must stay under the configured evidence root.")
+    return path
+
+
 def report(args: argparse.Namespace) -> int:
     profile = load_profile()
     if profile is None:
         print("Run `ioc-cms configure ...` first.")
         return 2
-    report_dir = Path(profile.evidence_root).expanduser() / "cases" / args.case_id / "reports"
+    try:
+        report_dir = case_directory(profile, args.case_id) / "reports"
+    except ValueError as exc:
+        print(exc)
+        return 2
     report_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     report_file = report_dir / f"{args.case_id}-{timestamp}.md"
@@ -162,7 +188,11 @@ def intake(args: argparse.Namespace) -> int:
     if profile is None:
         print("Run `ioc-cms configure ...` first.")
         return 2
-    case_dir = Path(profile.evidence_root).expanduser() / "cases" / args.case_id
+    try:
+        case_dir = case_directory(profile, args.case_id)
+    except ValueError as exc:
+        print(exc)
+        return 2
     for name in CASE_DIRECTORIES:
         (case_dir / name).mkdir(parents=True, exist_ok=True)
     manifest = case_dir / "case.json"

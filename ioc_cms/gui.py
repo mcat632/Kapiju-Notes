@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .cli import AgencyProfile, CASE_DIRECTORIES, CONFIG_FILE, WORKSPACE_TABS, load_profile, save_profile
+from .cli import AgencyProfile, CASE_DIRECTORIES, WORKSPACE_TABS, case_directory, load_profile, save_profile
 
 CSS = """
 :root{color-scheme:dark;--bg:#0b1020;--panel:#111a33;--panel2:#172447;--text:#edf4ff;--muted:#98a8c7;--brand:#70f0ff;--hot:#ff4fd8;--ok:#6dff9d;--warn:#ffd166}*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Segoe UI,sans-serif;background:radial-gradient(circle at top left,#202b64,#0b1020 40%,#050814);color:var(--text)}header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:18px 28px;background:rgba(8,12,25,.85);backdrop-filter:blur(18px);border-bottom:1px solid rgba(112,240,255,.18)}h1,h2{margin:0 0 12px}.brand{font-weight:900;letter-spacing:.08em}.pill{border:1px solid rgba(112,240,255,.35);padding:8px 12px;border-radius:999px;color:var(--brand)}main{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 73px)}nav{padding:22px;background:rgba(10,16,34,.72);border-right:1px solid rgba(255,255,255,.08)}nav a{display:block;color:var(--text);text-decoration:none;padding:12px 14px;margin:8px 0;border-radius:14px;background:rgba(255,255,255,.04)}nav a:hover{background:linear-gradient(90deg,rgba(112,240,255,.16),rgba(255,79,216,.12))}.content{padding:28px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}.card{background:linear-gradient(180deg,rgba(23,36,71,.88),rgba(13,20,41,.9));border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:20px;box-shadow:0 20px 70px rgba(0,0,0,.28)}.card.hot{border-color:rgba(255,79,216,.4)}.muted{color:var(--muted)}label{display:block;margin:12px 0 6px;color:var(--muted)}input,select,textarea{width:100%;border:1px solid rgba(255,255,255,.14);background:#071026;color:var(--text);border-radius:12px;padding:11px}button,.button{display:inline-block;border:0;border-radius:14px;background:linear-gradient(135deg,var(--brand),var(--hot));color:#081020;font-weight:800;padding:12px 16px;margin-top:14px;text-decoration:none;cursor:pointer}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{padding:9px 12px;border:1px solid rgba(112,240,255,.25);border-radius:999px;color:var(--brand);background:rgba(112,240,255,.06)}pre{white-space:pre-wrap;background:#060a15;border-radius:14px;padding:14px;border:1px solid rgba(255,255,255,.08);overflow:auto}.status{color:var(--ok);font-weight:800}.warning{color:var(--warn)}
@@ -39,9 +39,6 @@ def html_page(title: str, body: str, profile: AgencyProfile | None = None) -> by
     page = f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{title}</title><style>{CSS}</style></head><body><header><div><div class='brand'>IOC-CMS</div><div class='muted'>Fedora/RPM-first investigation platform</div></div><div class='pill'>{agency} · {lock}</div></header><main><nav><a href='/'>Dashboard</a><a href='/agency'>Agency setup</a><a href='/cases'>Cases</a><a href='/evidence'>Evidence</a><a href='/osint'>OSINT & Darkweb</a><a href='/media'>Video/Media</a><a href='/sandbox'>Malware/Ransomware</a><a href='/devices'>Mobile · Drone · CAR-CAN</a><a href='/reports'>Reports</a><a href='/admin'>Admin Theme</a><a href='/api/state'>API State</a></nav><section class='content'>{body}</section></main></body></html>"""
     return page.encode("utf-8")
 
-
-def case_root(profile: AgencyProfile, case_id: str) -> Path:
-    return Path(profile.evidence_root).expanduser() / "cases" / case_id
 
 
 class IOCGUIHandler(BaseHTTPRequestHandler):
@@ -107,7 +104,11 @@ class IOCGUIHandler(BaseHTTPRequestHandler):
             if profile is None:
                 self._send(html_page("Configure first", "<h2>Configure agency first</h2><a class='button' href='/agency'>Agency setup</a>"))
                 return
-            root = case_root(profile, data["case_id"])
+            try:
+                root = case_directory(profile, data["case_id"])
+            except ValueError as exc:
+                self._send(html_page("Invalid case ID", f"<h2>Invalid case ID</h2><p>{html.escape(str(exc))}</p><a class='button' href='/cases'>Back</a>", profile), HTTPStatus.BAD_REQUEST)
+                return
             for name in CASE_DIRECTORIES:
                 (root / name).mkdir(parents=True, exist_ok=True)
             manifest = root / "case.json"

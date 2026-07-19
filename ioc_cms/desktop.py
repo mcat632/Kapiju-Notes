@@ -7,7 +7,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from .cli import AgencyProfile, CASE_DIRECTORIES, WORKSPACE_TABS, load_profile, save_profile
+from .cli import AgencyProfile, CASE_DIRECTORIES, WORKSPACE_TABS, case_directory, load_profile, save_profile
 
 ACCENT = "#70f0ff"
 BG = "#0b1020"
@@ -168,7 +168,11 @@ class IOCCMSDesktop(tk.Tk):
         if not case_id:
             messagebox.showwarning("IOC-CMS", "Case ID is required.")
             return
-        case_dir = Path(self.profile.evidence_root).expanduser() / "cases" / case_id
+        try:
+            case_dir = case_directory(self.profile, case_id)
+        except ValueError as exc:
+            messagebox.showwarning("IOC-CMS", str(exc))
+            return
         for name in CASE_DIRECTORIES:
             (case_dir / name).mkdir(parents=True, exist_ok=True)
         (case_dir / "case.json").write_text(
